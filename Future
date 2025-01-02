@@ -1,0 +1,69 @@
+```lua
+local Future = {}
+Future.__index = Future
+
+export type Future = typeof(setmetatable({}, Future))
+
+-- < Utility Functions > --
+
+local function InvalidOperation(message)
+	warn(message)
+end
+
+-- < Future Implementation > --
+
+function Future.new() : Future
+	return setmetatable({
+		_callbacks = {},
+		_value = nil,
+		Set = false,
+	}, Future) :: Future
+end
+
+function Future:GetValue(): any
+	return unpack(self._value) :: any
+end
+
+function Future:Wait(): any
+	if self._value ~= nil then
+		return unpack(self._value) :: any
+	end
+
+	while self._value == nil do
+		task.wait()
+	end
+
+	return unpack(self._value) :: any
+end
+
+function Future:OnComplete(callback: (... any) -> ()): Future
+	if self._value ~= nil then
+		callback(unpack(self._value))
+	else
+		table.insert(self._callbacks, callback)
+	end
+
+	return self :: Future
+end
+
+function Future:Complete(...)
+	if self.Set then
+		InvalidOperation("Future cannot be set twice")
+		return
+	end
+
+	self._value = {...}
+	self.Set = true
+
+	for _, callback in ipairs(self._callbacks) do
+		callback(unpack(self._value))
+	end
+end
+
+function Future:Destroy()
+	table.clear(self._callbacks)
+	self._value = nil
+	setmetatable(self, nil)
+end
+
+return Future
